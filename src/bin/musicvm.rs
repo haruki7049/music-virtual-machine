@@ -1,10 +1,10 @@
 use clap::Parser;
 use std::path::PathBuf;
-use music_virtual_machine::mvm;
+use music_virtual_machine;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: CLIArgs = CLIArgs::parse();
-    let music_data: mvm::MusicData = mvm::parse(&args.path)?;
+    let music_data: music_virtual_machine::MusicData = music_virtual_machine::parse(&args.path)?;
 
     let spec = hound::WavSpec {
         channels: music_data.channels,
