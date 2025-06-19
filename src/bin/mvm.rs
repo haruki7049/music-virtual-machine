@@ -5,16 +5,31 @@ use std::ffi::OsStr;
 use chrono::Local;
 use chrono::DateTime;
 use directories::ProjectDirs;
+use hound::SampleFormat;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    color_eyre::install()?;
     let args: CLIArgs = CLIArgs::parse();
-    let output_path: PathBuf = if args.output.is_none() {
-        output_path(&args.path)?
-    } else {
-        args.output.unwrap()
-    };
+    
+    match args.output {
+        None => {
+            let output_path: PathBuf = output_path(&args.tomlfile)?;
+            generate_wavefile(&args.tomlfile, &output_path)?;
+        }
+        Some(output_path) => {
+            generate_wavefile(&args.tomlfile, &output_path)?;
+        }
+    }
 
-    let music_data: music_virtual_machine::MusicData = music_virtual_machine::parse(&args.path)?;
+    if args.play {
+        //play(&output_path)
+    }
+
+    Ok(())
+}
+
+fn generate_wavefile(tomlfile: &PathBuf, output: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let music_data: music_virtual_machine::MusicData = music_virtual_machine::parse(tomlfile)?;
 
     let spec = hound::WavSpec {
         channels: music_data.channels,
@@ -23,10 +38,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         sample_format: music_data.sample_format.into(),
     };
 
-    let mut writer = hound::WavWriter::create(output_path, spec)?;
+    let mut writer = hound::WavWriter::create(output, spec)?;
 
-    for bit in music_data.bits {
-        writer.write_sample(bit as i16)?;
+    match &spec.sample_format {
+        SampleFormat::Int => for bit in music_data.bits {
+            writer.write_sample(bit as i32)?;
+        }
+        SampleFormat::Float => for bit in music_data.bits {
+            writer.write_sample(bit as f32)?;
+        }
     }
 
     writer.finalize()?;
@@ -38,11 +58,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[clap(version, author, about)]
 struct CLIArgs {
     /// The file path to TOML file contains Music VM data
-    path: PathBuf,
+    tomlfile: PathBuf,
 
     /// Output wave file path
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    #[arg(short, long, default_value_t = false)]
+    play: bool,
 }
 
 fn output_path(mvm_path: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
