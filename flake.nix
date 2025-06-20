@@ -1,15 +1,4 @@
 {
-  description = "A hrtor's flake";
-
-  nixConfig = {
-    extra-substituters = [
-      "https://hrtor.cachix.org"
-    ];
-    extra-trusted-public-keys = [
-      "hrtor.cachix.org-1:fXGmUinLwE/TpyGhEyTGYEzk6L5cyJ0soYB385+k9lg="
-    ];
-  };
-
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     systems.url = "github:nix-systems/default";
@@ -49,30 +38,31 @@
           rust = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
           craneLib = (inputs.crane.mkLib pkgs).overrideToolchain rust;
           overlays = [ inputs.rust-overlay.overlays.default ];
+
           src = lib.cleanSource ./.;
+          nativeBuildInputs = [
+            rust
+            pkgs.pkg-config
+            pkgs.nil
+          ];
+          buildInputs = [
+            pkgs.alsa-lib
+          ];
+
           cargoArtifacts = craneLib.buildDepsOnly {
-            inherit src;
+            inherit src nativeBuildInputs buildInputs;
           };
-          cargo-build-targets = {
-            x86_64-linux.CARGO_BUILD_TARGET = "x86_64-unknown-linux-musl";
-            aarch64-linux.CARGO_BUILD_TARGET = "aarch64-unknown-linux-musl";
-            x86_64-darwin.CARGO_BUILD_TARGET = "x86_64-apple-darwin";
-            aarch64-darwin.CARGO_BUILD_TARGET = "aarch64-apple-darwin";
-          };
-          hrtor = craneLib.buildPackage {
-            inherit src cargoArtifacts;
+          mvm = craneLib.buildPackage {
+            inherit src cargoArtifacts nativeBuildInputs buildInputs;
             strictDeps = true;
             doCheck = true;
-
-            inherit (cargo-build-targets."${system}") CARGO_BUILD_TARGET;
-            CARGO_BUILD_RUSTFLAGS = "-C target-feature=+crt-static";
           };
           cargo-clippy = craneLib.cargoClippy {
-            inherit src cargoArtifacts;
+            inherit src cargoArtifacts nativeBuildInputs buildInputs;
             cargoClippyExtraArgs = "--verbose -- --deny warning";
           };
           cargo-doc = craneLib.cargoDoc {
-            inherit src cargoArtifacts;
+            inherit src cargoArtifacts nativeBuildInputs buildInputs;
           };
         in
         {
@@ -110,26 +100,28 @@
           };
 
           packages = {
-            inherit hrtor;
-            default = hrtor;
+            inherit mvm;
+            default = mvm;
             doc = cargo-doc;
           };
 
           checks = {
             inherit
-              hrtor
+              mvm
               cargo-clippy
               cargo-doc
               ;
           };
 
           devShells.default = pkgs.mkShell {
-            packages = [
-              # Rust
+            nativeBuildInputs = [
               rust
-
-              # Nix
+              pkgs.pkg-config
               pkgs.nil
+            ];
+
+            buildInputs = [
+              pkgs.alsa-lib
             ];
 
             shellHook = ''

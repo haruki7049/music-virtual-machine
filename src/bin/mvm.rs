@@ -1,11 +1,16 @@
 use clap::Parser;
+use std::time::{Duration};
 use std::path::PathBuf;
 use std::path::Path;
+use std::fs::File;
+use std::io::BufReader;
 use std::ffi::OsStr;
 use chrono::Local;
 use chrono::DateTime;
 use directories::ProjectDirs;
 use hound::SampleFormat;
+use rodio::{Decoder, OutputStream, source::Source};
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     color_eyre::install()?;
@@ -13,17 +18,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     match args.output {
         None => {
-            let output_path: PathBuf = output_path(&args.tomlfile)?;
+            let output_path: PathBuf = gen_output_path(&args.tomlfile)?;
             generate_wavefile(&args.tomlfile, &output_path)?;
+
+            if args.play {
+                play(&output_path)?;
+            }
         }
         Some(output_path) => {
             generate_wavefile(&args.tomlfile, &output_path)?;
+
+            if args.play {
+                play(&output_path)?;
+            }
         }
     }
 
-    if args.play {
-        //play(&output_path)
-    }
+    Ok(())
+}
+
+fn play(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let (_stream, stream_handle) = OutputStream::try_default()?;
+    let file = BufReader::new(File::open(path)?);
+    let source = Decoder::new(file)?;
+    let duration: Duration = source.total_duration().ok_or("The wavefile's duration is \"infinite\" or \"unknown\"")?;
+    stream_handle.play_raw(source.convert_samples())?;
+
+    std::thread::sleep(duration);
 
     Ok(())
 }
@@ -68,7 +89,7 @@ struct CLIArgs {
     play: bool,
 }
 
-fn output_path(mvm_path: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn gen_output_path(mvm_path: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let project_dirs: ProjectDirs = ProjectDirs::from("dev", "haruki7049", "mvm").ok_or("Failed to get project dir for dev.haruki7049.mvm")?;
     let cache_dir: &Path = project_dirs.cache_dir();
     let date: DateTime<Local> = Local::now();
