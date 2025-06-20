@@ -45,7 +45,7 @@
             pkgs.pkg-config
             pkgs.nil
           ];
-          buildInputs = [
+          buildInputs = lib.optionals pkgs.stdenv.isLinux [
             pkgs.alsa-lib
           ];
 
@@ -114,15 +114,7 @@
           };
 
           devShells.default = pkgs.mkShell {
-            nativeBuildInputs = [
-              rust
-              pkgs.pkg-config
-              pkgs.nil
-            ];
-
-            buildInputs = [
-              pkgs.alsa-lib
-            ];
+            inherit nativeBuildInputs buildInputs;
 
             shellHook = ''
               export PS1="\n[nix-shell:\w]$ "
